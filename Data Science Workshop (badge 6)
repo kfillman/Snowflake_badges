@@ -1,0 +1,202 @@
+----------------------- Lesson 1 ---------------------------
+
+// set default user settings
+set default_role = 'SYSADMIN';
+set default_warehouse = 'COMPUTE_WH';
+set default_namespace = 'UTIL_DB.PUBLIC';
+
+----------------------- Lesson 2 ----------------------------
+
+// create database and warehosuse for data sci projects
+create database CAMILLAS_DB;
+drop schema CAMILLAS_DB.public;
+create schema  CAMILLAS_DB.CORTEX_ANALYST;
+create warehouse LLM_WH
+WAREHOUSE_SIZE = XSMALL;
+-- created stage using UI
+
+// create teams table
+create or replace table camillas_db.cortex_analyst.camillas_teams
+( 
+    team_id number,
+    team_name varchar(50),
+    kit_color varchar(20),
+    coach varchar(100),
+    emoji_symbol varchar(5)
+);
+
+insert into camillas_db.cortex_analyst.camillas_teams
+values
+(1,'Blue Sky Strikers','cerulean','Stormy McLeod', '💙☁️⚡️'),
+(2,'Pitch Blazing Bombers','emerald','Kelly Groen','🌱🔥💣' ),
+(3,'Solar Flashing Flares','marigold','Ravi Bahsin', '☀️🔥'),
+(4,'Terracotta Tirade','terracotta','Clay Skála', '🪴💪');
+
+// Create table for match locations & schedule
+create or replace table camillas_db.cortex_analyst.match_locations
+(
+ location_id number, 
+ location_name varchar(50)
+);
+
+insert into camillas_db.cortex_analyst.match_locations
+values 
+(1, 'Main Street Park - Pitch 1'),
+(2, 'Main Street Park - Pitch 2'),
+(3, 'Central Park - North Pitch'),
+(4, 'Central Park - South Pitch');
+
+create or replace table camillas_db.cortex_analyst.match_schedule
+( 
+    home_team_id number,
+    away_team_id number,
+    location_id number,
+    match_datetime timestamp_ntz  
+);
+
+insert into camillas_db.cortex_analyst.match_schedule
+values
+(1,2,1,'2025-06-07 08:00:00'),
+(3,4,2,'2025-06-07 08:00:00'),
+(2,3,3,'2025-06-07 12:00:00'),
+(1,4,4,'2025-06-07 12:00:00'),
+(1,3,1,'2025-06-07 16:00:00'),
+(2,4,2,'2025-06-07 16:00:00')
+;
+
+-------------------------- Lesson 3 -----------------------------
+
+// create model using cortex analyst & play around with its capabilities
+
+-------------------------- Lesson 4 -----------------------------
+
+// do set up for forcasting
+create schema camillas_db.FORECASTING;
+create warehouse ML_WH
+WAREHOUSE_SIZE = XSMALL;
+
+create or replace table camillas_db.forecasting.practice_stats (
+	practice_date timestamp_ntz,
+	goals_scored number,
+	goals_attempted number);
+
+copy into camillas_db.forecasting.practice_stats
+from @UTIL_DB.PUBLIC.MY_INTERNAL_STAGE
+files = ('stats_collected_at_practice.csv')
+file_format = (format_name = 'UTIL_DB.PUBLIC.CSV_COMMA_LF_HEADER');
+
+select * from camillas_db.forecasting.practice_stats;
+
+// create views for model forcasting
+-- make a view that uses data from march to july for training the model 
+create or replace view camillas_db.forecasting.train_model_practice_data(
+	  practice_date,
+	  goals_attempted,
+	  goals_scored
+) as
+  select 
+    practice_date, 
+    goals_attempted,
+    goals_scored
+  from camillas_db.forecasting.practice_stats
+  where practice_date < '2025-07-01';
+
+
+-- make a view that uses data from july forward for validating the model
+create or replace view camillas_db.forecasting.validate_model_practice_data(
+	   practice_date,
+	   goals_attempted,
+	   goals_scored
+) as
+  select 
+    practice_date, 
+    goals_attempted,
+    goals_scored
+  from camillas_db.forecasting.practice_stats
+  where practice_date >= '2025-07-01';
+
+// use forcasting function to forcast first goals
+-- this is done in the IA & ML UI section
+
+----------------------------- Lesson 5 -------------------------------------
+
+-- Create a New Training Data View and Add a Day of Week Column
+create or replace view camillas_db.forecasting.train_2_model_practice_data(
+	practice_date,
+        day_of_week,
+	goals_attempted,
+	goals_scored
+) as
+select 
+practice_date,
+dayname(practice_date) as day_of_week,
+goals_attempted,
+goals_scored
+from camillas_db.forecasting.practice_stats
+where practice_date < '2025-07-01';
+
+create or replace view camillas_db.forecasting.VALIDATE_2_MODEL_PRACTICE_DATA (
+	   practice_date,
+       day_of_week,
+	   goals_attempted,
+	   goals_scored
+) as
+  select 
+    practice_date, 
+    dayname (practice_date) as day_of_week,
+    goals_attempted,
+    goals_scored
+  from camillas_db.forecasting.practice_stats
+  where practice_date >= '2025-07-01';
+
+  select * from camillas_db.forecasting.VALIDATE_2_MODEL_PRACTICE_DATA;
+
+  -- created new forecasting model using same method as before
+
+  ---------------------------------------- Lesson 7 -------------------------------
+
+  create schema CAMILLAS_DB.CLASSIFICATION;
+
+  -- Create and Populate Classification Tables
+  create or replace table camillas_db.classification.train_player_position (
+	player_id number(38,0),
+	position_code varchar(1),
+	game number(38,0),
+	minutes_played number(38,0),
+	goals number(38,0),
+	assists number(38,0),
+	shots number(38,0),
+	passes number(38,0),
+	sprint_distance number(38,0),
+	saves number(38,0),
+	dribbles number(38,0),
+	blocks number(38,0),
+	claims number(38,0)
+);
+
+copy into camillas_db.classification.train_player_position
+from @UTIL_DB.PUBLIC.MY_INTERNAL_STAGE
+files = ('train_player_positions.csv')
+file_format = (format_name = 'UTIL_DB.PUBLIC.CSV_COMMA_LF_HEADER');
+
+create or replace table camillas_db.classification.unclassified_player_positions (
+	player_id number(38,0),
+	game_id number(38,0),
+	mins_played number(38,0),
+	goals_made number(38,0),
+	assists number(38,0),
+	shots number(38,0),
+	passes number(38,0),
+	sprint_distance number(38,0),
+	saves number(38,0),
+	dribbles number(38,0),
+	blocks number(38,0),
+	claims number(38,0)
+);
+
+copy into camillas_db.classification.unclassified_player_positions
+from @UTIL_DB.PUBLIC.MY_INTERNAL_STAGE
+files = ('unclassified_player_data.csv')
+file_format = (format_name = 'UTIL_DB.PUBLIC.CSV_COMMA_LF_HEADER');
+
+-- Use Snowflake's AI & ML Studio Classification Wizard to complete the rest of the workshop
